@@ -5,8 +5,8 @@ import numpy as np
 
 pose = mp_pose.Pose()
 
-# cap = cv2.VideoCapture(0)
-cap = cv2.VideoCapture('C:/MTV4/squat.mp4')
+cap = cv2.VideoCapture(0)
+#cap = cv2.VideoCapture('C:/MTV4/squat.mp4')
 
 width = 1280
 height = 720
