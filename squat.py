@@ -2,51 +2,53 @@ import cv2
 from mediapipe.python.solutions import pose as mp_pose
 from mediapipe.python.solutions import drawing_utils as mp_drawing
 import numpy as np
+import socket
+import json
+
+# 소켓 서버 설정
+HOST = '127.0.0.1'  # 로컬호스트
+PORT = 9999  # 사용할 포트
+
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind((HOST, PORT))
+server_socket.listen()
+
+print("Waiting for Unity to connect...")
+client_socket, addr = server_socket.accept()
+print(f"Connected by {addr}")
 
 pose = mp_pose.Pose()
 
 cap = cv2.VideoCapture(0)
-#cap = cv2.VideoCapture('C:/MTV4/squat.mp4')
-
 width = 1280
 height = 720
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
-squat_state = False  # down 상태 여부
-count = 0  # 스쿼트 카운트
+squat_state = False
+count = 0
 
-# 3 점을 가지고 각도를 구하는 함수
-def calculate_angle(a, b, c):  # b가 가운데
+def calculate_angle(a, b, c):
     a = np.array(a)
     b = np.array(b)
     c = np.array(c)
-    
     ba = a - b
     bc = c - b
-    
-    cosangle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))  # 내적 / 길이*길이
+    cosangle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
     arccos = np.arccos(cosangle)
-    degree = np.degrees(arccos)  # 각도로 바꿈
+    degree = np.degrees(arccos)
     return degree
-
 
 while cap.isOpened():
     ret, img = cap.read()
     img = cv2.flip(img, 1)
-    
+
     if not ret:
         break
-    
+
     results = pose.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     
     if results.pose_landmarks:
-        mp_drawing.draw_landmarks(
-            img,
-            results.pose_landmarks,
-            mp_pose.POSE_CONNECTIONS,
-        )
-        
         left_hip = [
             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP].x, 
             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP].y,
@@ -81,22 +83,129 @@ while cap.isOpened():
         ]
         right_angle = calculate_angle(right_hip, right_knee, right_ankle)
         
+        state = ""
         if left_angle <= 100 and right_angle <= 100:
-            cv2.putText(img, "down", (0, 100), cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255), 3)
-            squat_state = True  # down 상태
+            state = "down"
+            squat_state = True
         if left_angle >= 110 and right_angle >= 110:
-            cv2.putText(img, "up", (0, 100), cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255), 3)
-            if squat_state:  # 이전 상태가 down이었다면
-                count += 1  # 스쿼트 카운트 증가
-                squat_state = False  # up 상태로 변경
+            state = "up"
+            if squat_state:
+                count += 1
+                squat_state = False
+        
+        # Unity에 데이터 전송
+        data = {"state": state, "count": count}
+        message = json.dumps(data)
+        client_socket.sendall(message.encode())
 
-        # 카운트 표시
-        cv2.putText(img, f"Count: {count}", (0, 200), cv2.FONT_HERSHEY_COMPLEX, 2, (255, 0, 0), 3)
-
-    cv2.imshow('', img)
-    
     if cv2.waitKey(1) == 27:
         break
 
 cap.release()
 cv2.destroyAllWindows()
+client_socket.close()
+server_socket.close()
+
+
+# import cv2
+# from mediapipe.python.solutions import pose as mp_pose
+# from mediapipe.python.solutions import drawing_utils as mp_drawing
+# import numpy as np
+
+# pose = mp_pose.Pose()
+
+# cap = cv2.VideoCapture(0)
+# #cap = cv2.VideoCapture('C:/MTV4/squat.mp4')
+
+# width = 1280
+# height = 720
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+
+# squat_state = False  # down 상태 여부
+# count = 0  # 스쿼트 카운트
+
+# # 3 점을 가지고 각도를 구하는 함수
+# def calculate_angle(a, b, c):  # b가 가운데
+#     a = np.array(a)
+#     b = np.array(b)
+#     c = np.array(c)
+    
+#     ba = a - b
+#     bc = c - b
+    
+#     cosangle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))  # 내적 / 길이*길이
+#     arccos = np.arccos(cosangle)
+#     degree = np.degrees(arccos)  # 각도로 바꿈
+#     return degree
+
+
+# while cap.isOpened():
+#     ret, img = cap.read()
+#     img = cv2.flip(img, 1)
+    
+#     if not ret:
+#         break
+    
+#     results = pose.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    
+#     if results.pose_landmarks:
+#         mp_drawing.draw_landmarks(
+#             img,
+#             results.pose_landmarks,
+#             mp_pose.POSE_CONNECTIONS,
+#         )
+        
+#         left_hip = [
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP].x, 
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP].y,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP].z
+#         ]
+#         left_knee = [
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE].x,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE].y,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE].z
+#         ]
+#         left_ankle = [
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_ANKLE].x,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_ANKLE].y,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_ANKLE].z
+#         ]
+#         left_angle = calculate_angle(left_hip, left_knee, left_ankle)
+
+#         right_hip = [
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_HIP].x, 
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_HIP].y, 
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_HIP].z
+#         ]
+#         right_knee = [
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_KNEE].x,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_KNEE].y,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_KNEE].z
+#         ]
+#         right_ankle = [
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_ANKLE].x,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_ANKLE].y,
+#             results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_ANKLE].z
+#         ]
+#         right_angle = calculate_angle(right_hip, right_knee, right_ankle)
+        
+#         if left_angle <= 100 and right_angle <= 100:
+#             cv2.putText(img, "down", (0, 100), cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255), 3)
+#             squat_state = True  # down 상태
+#         if left_angle >= 110 and right_angle >= 110:
+#             cv2.putText(img, "up", (0, 100), cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255), 3)
+#             if squat_state:  # 이전 상태가 down이었다면
+#                 count += 1  # 스쿼트 카운트 증가
+#                 squat_state = False  # up 상태로 변경
+
+#         # 카운트 표시
+#         cv2.putText(img, f"Count: {count}", (0, 200), cv2.FONT_HERSHEY_COMPLEX, 2, (255, 0, 0), 3)
+
+#     cv2.imshow('', img)
+    
+#     if cv2.waitKey(1) == 27:
+#         break
+
+# cap.release()
+# cv2.destroyAllWindows()
