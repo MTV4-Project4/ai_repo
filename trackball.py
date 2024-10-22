@@ -1,73 +1,58 @@
 import cv2
-import mediapipe as mp
 import numpy as np
+from ultralytics import YOLO
 
-# MediaPipe Pose 초기화
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(static_image_mode=False, model_complexity=1, enable_segmentation=False, min_detection_confidence=0.5)
+# YOLOv8 모델 불러오기
+model = YOLO("yolov8n.pt")  # YOLOv8n 모델을 사용합니다. 필요에 따라 yolov8s.pt 등 다른 모델을 선택할 수 있습니다.
 
-# 비디오 캡처 초기화
-cap = cv2.VideoCapture(0)  # 웹캠 사용
+# 비디오 캡처 설정
+cap = cv2.VideoCapture(0)  # 웹캠으로 실시간 영상 받기
+kick_count = 0  # 킥 카운터
+previous_position = None  # 이전 프레임에서의 공 위치
 
-# 차기 횟수 초기화 및 상태 변수 설정
-kick_count = 0
-in_kick_position = False
-
-def calculate_angle(a, b, c):
-    """세 점의 각도를 계산하는 함수"""
-    a = np.array(a)
-    b = np.array(b)
-    c = np.array(c)
+# 킥 감지 함수
+def detect_kick(current_position, previous_position, threshold=20):
+    if previous_position is None:
+        return False
     
-    radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
-    angle = np.abs(radians * 180.0 / np.pi)
-    
-    if angle > 180.0:
-        angle = 360 - angle
-        
-    return angle
+    distance = np.linalg.norm(np.array(current_position) - np.array(previous_position))
+    if distance > threshold:  # 공의 위치 변화가 threshold를 넘을 때 킥으로 판정
+        return True
+    return False
 
-def detect_kick(landmarks):
-    """공을 차는 동작인지 확인하는 함수"""
-    # 필요한 랜드마크 좌표 추출 (예: 발목과 무릎)
-    hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
-    knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
-    ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
-    
-    # 무릎 각도 계산
-    knee_angle = calculate_angle(hip, knee, ankle)
-    
-    # 공 차기 동작 판단 (예: 무릎 각도가 특정 각도 이하일 때)
-    return knee_angle < 140
-
-while cap.isOpened():
+while True:
     ret, frame = cap.read()
     if not ret:
         break
-    
-    # BGR 이미지를 RGB로 변환
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-    # MediaPipe Pose 처리
-    results = pose.process(image)
-    
-    # 랜드마크가 감지되면 공 차기 확인
-    if results.pose_landmarks:
-        landmarks = results.pose_landmarks.landmark
-        
-        if detect_kick(landmarks):
-            if not in_kick_position:
-                kick_count += 1
-                in_kick_position = True
-        else:
-            in_kick_position = False
-    
-    # 결과 출력
-    cv2.putText(frame, f'Kicks: {kick_count}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-    
-    cv2.imshow('Kick Counter', frame)
-    
-    if cv2.waitKey(10) & 0xFF == ord('q'):
+
+    # YOLOv8을 사용하여 객체 감지
+    results = model(frame)
+    ball_position = None
+
+    # YOLOv8 결과에서 'sports ball'을 찾음
+    for result in results.xyxy[0]:
+        class_id = int(result[5])  # 객체 클래스 ID
+        if class_id == 32:  # 'sports ball' 클래스는 32번입니다.
+            x1, y1, x2, y2 = map(int, result[:4])  # 경계 상자 좌표
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+            ball_position = (center_x, center_y)
+            break
+
+    if ball_position is not None and previous_position is not None:
+        if detect_kick(ball_position, previous_position):
+            kick_count += 1
+            print(f"킥 횟수: {kick_count}")
+
+    previous_position = ball_position  # 현재 위치를 이전 위치로 저장
+
+    # 화면에 공의 위치 표시
+    if ball_position is not None:
+        cv2.circle(frame, ball_position, 10, (0, 255, 0), 2)
+
+    cv2.imshow("Frame", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
