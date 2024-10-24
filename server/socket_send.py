@@ -85,7 +85,7 @@ def start_server():
                             print(f"스쿼트 횟수: {squat_count}")
 
                             # Unity로 count 값을 전송
-                            client_socket.sendall(str(squat_count).encode('utf-8'))
+                            client_socket.sendall(struct.pack('<I', squat_count))
 
                             # 분석된 이미지 출력 (cv2.imshow로 시각화)
                             cv2.imshow("Pose Analysis", frame)

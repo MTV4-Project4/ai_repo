@@ -33,7 +33,7 @@ opt_einsum==3.4.0
 packaging==24.1
 pandas==2.2.3
 pillow==10.4.0
-protobuf==4.25.5
+protobuf==5.28.3
 psutil==6.1.0
 py-cpuinfo==9.0.0
 pycparser==2.22
