@@ -8,9 +8,11 @@ import os
 # 'pose_analysis' 디렉터리 경로를 Python 모듈 경로에 추가
 sys.path.append(os.path.abspath('C:/MTV4/pose_analysis'))
 
-from pose_squat2 import analyze_pose  # 'pose_squat2.py'에서 분석 함수 가져오기
+from pose_squat2 import analyze_pose as analyze_squat  # 'pose_squat2.py'에서 스쿼트 분석 함수 가져오기
+from pose_jump import analyze_jump  # 'pose_jump.py'에서 제자리 뛰기 분석 함수 가져오기
 
-def recv_all(sock, count):
+
+def recv_all(sock, count): 
     """ 지정한 바이트 수만큼 데이터를 수신 """
     buffer = b''
     while len(buffer) < count:
@@ -69,7 +71,16 @@ def start_server():
 
                 while running:
                     try:
-                        # 이미지 데이터 수신
+                        # 1. 모델 선택 신호를 먼저 수신 (스쿼트: 1, 제자리 뛰기: 2)
+                        model_data = recv_all(client_socket, 1)
+                        if model_data is None:
+                            print("모델 선택 신호 수신 실패")
+                            break
+
+                        model_choice = struct.unpack('<B', model_data)[0]
+                        print(f"선택된 모델: {model_choice}")
+
+                        # 2. 이미지 데이터 수신
                         image_data = receive_image_data(client_socket)
                         if image_data is None:
                             print("이미지 데이터 수신 실패")
@@ -79,17 +90,23 @@ def start_server():
                         np_image = np.frombuffer(image_data, dtype=np.uint8)
                         frame = cv2.imdecode(np_image, cv2.IMREAD_COLOR)
 
-                        # 자세 분석하여 스쿼트 카운트 획득
+                        # 3. 선택된 모델에 따라 자세 분석 수행
                         if frame is not None:
-                            squat_count = analyze_pose(frame)  # 스쿼트 횟수 받음
-                            print(f"스쿼트 횟수: {squat_count}")
+                            if model_choice == 1:
+                                count = analyze_squat(frame)  # 스쿼트 분석
+                                print(f"스쿼트 횟수: {count}")
+                            elif model_choice == 2:
+                                count = analyze_jump(frame)  # 제자리 뛰기 분석
+                                print(f"제자리 뛰기 횟수: {count}")
+                            else:
+                                print("알 수 없는 모델 선택")
 
                             # Unity로 count 값을 전송
-                            client_socket.sendall(struct.pack('<I', squat_count))
+                            client_socket.sendall(struct.pack('<I', count))
 
                             # 분석된 이미지 출력 (cv2.imshow로 시각화)
                             cv2.imshow("Pose Analysis", frame)
-                        
+
                         # 'q' 키를 누르면 서버 종료
                         if cv2.waitKey(1) == ord('q'):
                             running = False
