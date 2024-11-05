@@ -11,6 +11,7 @@ from pose_jump import analyze_jump  # 'pose_jump.py'에서 제자리 뛰기 분�
 from pose_eye import analyze_eye_foot  # 'pose_eye.py'에서 눈 감김 및 한 발 분석 함수 가져오기
 from pose_crunch import analyze_pose as analyze_crunch  # 'pose_crunch.py'에서 크런치 분석 함수 가져오기
 from pose_side_step import analyze_pose as analyze_side_step  # 'pose_side_step.py'에서 사이드스텝 분석 함수 가져오기
+from pose_kick import analyze_kick  # 'pose_kick.py'에서 킥 감지 분석 함수 가져오기
 
 def recv_all(sock, count):
     """ 지정한 바이트 수만큼 데이터를 수신 """
@@ -49,7 +50,7 @@ def start_server():
 
                 while running:
                     try:
-                        # 1. 모델 선택 신호를 먼저 수신 (스쿼트: 1, 제자리 뛰기: 2, 눈 감김/발 판정: 3, 크런치: 4, 사이드스텝: 5)
+                        # 1. 모델 선택 신호를 먼저 수신 (스쿼트: 1, 제자리 뛰기: 2, 눈 감김/발 판정: 3, 크런치: 4, 사이드스텝: 5, 킥 감지: 6)
                         model_data = recv_all(client_socket, 1)
                         if model_data is None:
                             print("모델 선택 신호 수신 실패")
@@ -62,27 +63,26 @@ def start_server():
                         if model_choice == 1:
                             count = analyze_squat()  # 스쿼트 분석
                             print(f"스쿼트 횟수: {count}")
-                            # Unity로 count 값을 전송
                             client_socket.sendall(struct.pack('<I', count))
                         elif model_choice == 2:
                             count = analyze_jump()  # 제자리 뛰기 분석
                             print(f"제자리 뛰기 횟수: {count}")
-                            # Unity로 count 값을 전송
                             client_socket.sendall(struct.pack('<I', count))
                         elif model_choice == 3:
                             status = analyze_eye_foot()  # 눈 감김 및 한 발 판정
                             print(f"챌린지 상태: {status}")
-                            # Unity로 상태를 전송
                             client_socket.sendall(status.encode('utf-8'))
                         elif model_choice == 4:
                             count = analyze_crunch()  # 크런치 분석
                             print(f"크런치 횟수: {count}")
-                            # Unity로 count 값을 전송
                             client_socket.sendall(struct.pack('<I', count))
                         elif model_choice == 5:
                             count = analyze_side_step()  # 사이드스텝 분석
                             print(f"사이드스텝 횟수: {count}")
-                            # Unity로 count 값을 전송
+                            client_socket.sendall(struct.pack('<I', count))
+                        elif model_choice == 6:
+                            count = analyze_kick()  # 킥 감지 분석
+                            print(f"킥 횟수: {count}")
                             client_socket.sendall(struct.pack('<I', count))
                         else:
                             print("알 수 없는 모델 선택")
