@@ -1,73 +1,40 @@
 import cv2
 from mediapipe.python.solutions import pose as mp_pose
-from mediapipe.python.solutions import drawing_utils as mp_drawing
 import numpy as np
 
-# MediaPipe Pose 초기화
+# MediaPipe Pose 초기화 (한 번만 초기화)
 pose = mp_pose.Pose()
 
 # 전역 변수로 상태 및 카운트 관리
-crunch_state = False  # 몸이 위로 올라간 상태 여부
+crunch_state = False  # 상체가 올라간 상태 여부
 count = 0  # 크런치 카운트
+y_threshold = 0.03  # 어깨와 엉덩이의 y 좌표 차이에 대한 임계값
 
-# 3 점을 가지고 각도를 구하는 함수
-def calculate_angle(a, b, c):  # b가 가운데
-    a = np.array(a[:2])  # x, y 좌표만 사용
-    b = np.array(b[:2])
-    c = np.array(c[:2])
-    
-    ba = a - b
-    bc = c - b
-    
-    cosangle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))  # 내적 / 길이*길이
-    arccos = np.arccos(cosangle)
-    degree = np.degrees(arccos)  # 각도로 바꿈
-    return degree
-
-# 자세 분석 함수
+# 자세 분석 함수 (프레임을 입력받아 크런치 동작을 분석)
 def analyze_pose(frame):
     global crunch_state, count  # 전역 변수 사용
     
-    img = cv2.flip(frame, 1)
-    
-    results = pose.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    # MediaPipe Pose로 자세 분석
+    results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     
     if results.pose_landmarks:
-        left_shoulder = [
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_SHOULDER].x, 
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_SHOULDER].y,
-        ]
-        left_hip = [
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP].x,
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP].y,
-        ]
-        left_knee = [
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE].x,
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE].y,
-        ]
-        left_angle = calculate_angle(left_shoulder, left_hip, left_knee)
+        landmarks = results.pose_landmarks.landmark
 
-        right_shoulder = [
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, 
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_SHOULDER].y,
-        ]
-        right_hip = [
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_HIP].x,
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_HIP].y,
-        ]
-        right_knee = [
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_KNEE].x,
-            results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_KNEE].y,
-        ]
-        right_angle = calculate_angle(right_shoulder, right_hip, right_knee)
-        
-        # 크런치 동작 판정
-        if left_angle <= 45 and right_angle <= 45:
-            crunch_state = True  # 몸이 올라간 상태로 판정
-        if left_angle >= 90 and right_angle >= 90:
-            if crunch_state:  # 이전 상태가 올라간 상태였다면
+        # 필요한 랜드마크 추출 (왼쪽 어깨, 왼쪽 엉덩이)
+        left_shoulder_y = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y
+        left_hip_y = landmarks[mp_pose.PoseLandmark.LEFT_HIP].y
+
+        # 어깨와 엉덩이 사이의 y 좌표 차이 계산
+        y_diff = left_hip_y - left_shoulder_y
+
+        # 상체가 내려간 상태 설정 (초기 상태)
+        if y_diff < y_threshold:  # 어깨가 엉덩이에 가까워짐 (상체 내려감)
+            crunch_state = False
+
+        # 상체가 올라간 상태 판정
+        elif y_diff > y_threshold:  # 어깨가 엉덩이에 비해 위로 올라감 (상체 올라감)
+            if not crunch_state:  # 이전에 내려간 상태였다면
                 count += 1  # 크런치 카운트 증가
-                crunch_state = False  # 내려간 상태로 변경
+                crunch_state = True  # 상체가 올라간 상태로 변경
 
-    # 카운트를 반환
     return count
