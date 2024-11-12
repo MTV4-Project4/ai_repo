@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath('C:/MTV4/pose_analysis'))
 
 from pose_squat2 import analyze_pose as analyze_squat  # 'pose_squat2.py'에서 스쿼트 분석 함수 가져오기
 from pose_jump import analyze_jump  # 'pose_jump.py'에서 제자리 뛰기 분석 함수 가져오기
-# from pose_eye import analyze_eye_foot  # 'pose_eye.py'에서 눈 감김 및 한 발 분석 함수 가져오기
+from pose_leg import analyze_foot  # 'pose_leg.py'에서 한 발 분석 함수 가져오기
 from pose_crunch import analyze_pose as analyze_crunch  # 'pose_crunch.py'에서 크런치 분석 함수 가져오기
 # from pose_side_step import analyze_pose as analyze_side_step  # 'pose_side_step.py'에서 사이드스텝 분석 함수 가져오기
 from pose_kick import analyze_kick  # 'pose_kick.py'에서 킥 감지 분석 함수 가져오기
@@ -73,6 +73,7 @@ def start_server():
     print('서버가 시작되었습니다. 클라이언트 연결 대기 중...')
 
     client_socket = None
+    previous_model = None  # 이전 모델 선택을 저장할 변수
 
     try:
         running = True
@@ -83,7 +84,7 @@ def start_server():
 
                 while running:
                     try:
-                        # 1. 모델 선택 신호를 먼저 수신 (스쿼트: 1, 제자리 뛰기: 2, 눈 감김/발 판정: 3, 크런치: 4, 사이드스텝: 5, 킥 감지: 6)
+                        # 모델 선택 신호를 먼저 수신 (스쿼트: 1, 제자리 뛰기: 2, 눈 감김/발 판정: 3, 크런치: 4, 사이드스텝: 5, 킥 감지: 6)
                         model_data = recv_all(client_socket, 1)
                         if model_data is None:
                             print("모델 선택 신호 수신 실패")
@@ -92,66 +93,71 @@ def start_server():
                         model_choice = struct.unpack('<B', model_data)[0]
                         print(f"선택된 모델: {model_choice}")
 
-                        # 2. 이미지 데이터 수신 및 디코딩
+                        # 새로운 모델이 선택되었을 때 초기화
+                        if previous_model != model_choice:
+                            if model_choice == 6:  # 킥 감지 모델 초기화 필요 시 수행
+                                from pose_kick import reset_counter
+                                reset_counter()
+                            previous_model = model_choice
+
+                        # 이미지 데이터 수신 및 디코딩
                         frame = receive_image_data(client_socket)
                         if frame is None:
                             print("이미지 데이터 수신 실패")
                             continue  # 이미지가 없으면 다음 루프로 이동
 
-                        # 수신된 이미지를 화면에 표시
+                        # 수신된 이미지를 화면에 표시 (디버깅용)
                         cv2.imshow("Received Frame", frame)
 
-                        # 3. 모델에 따른 분석 수행
+                        # 모델에 따른 분석 수행 (스쿼트, 제자리 뛰기 등)
                         if model_choice == 1:
-                            count = analyze_squat(frame)  # 스쿼트 분석
+                            count = analyze_squat(frame)  
                             print(f"스쿼트 횟수: {count}")
-                        elif model_choice == 2:
-                            count = analyze_jump(frame)  # 제자리 뛰기 분석
-                            print(f"제자리 뛰기 횟수: {count}")
-                        
-                        # elif model_choice == 3:
-                        #     status = analyze_eye_foot(frame)  # 눈 감김 및 한 발 판정
-                        #     print(f"챌린지 상태: {status}")
-                        #     client_socket.sendall(status.encode('utf-8'))
-                        #     continue
-                        elif model_choice == 4:
-                            count = analyze_crunch(frame)  # 크런치 분석
-                            print(f"크런치 횟수: {count}")
-                        # elif model_choice == 5:
-                        #     count = analyze_side_step(frame)  # 사이드스텝 분석
-                        #     print(f"사이드스텝 횟수: {count}")
-                        elif model_choice == 6:
-                            count = analyze_kick(frame)  # 킥 감지 분석
-                            print(f"킥 횟수: {count}")
-                        else:
-                            print("알 수 없는 모델 선택")
+                            client_socket.sendall(struct.pack('<I', int(count)))
                             continue
 
-                        # count가 None이면 0으로 설정
-                        count = count if count is not None else 0
+                        elif model_choice == 2:
+                            count = analyze_jump(frame)  
+                            print(f"제자리 뛰기 횟수: {count}")
+                            client_socket.sendall(struct.pack('<I', int(count)))
+                            continue
 
-                        # 결과 값을 클라이언트로 전송
-                        client_socket.sendall(struct.pack('<I', int(count)))
+                        elif model_choice == 3:
+                             count = analyze_foot(frame)  
+                             print(f"챌린지 상태: {count}")
+                             client_socket.sendall(struct.pack('<I', int(count)))   # 정수형 상태 전송
+                             continue
 
-                        # 'q' 키를 누르면 서버 종료
-                        if cv2.waitKey(1) & 0xFF == ord('q'):
-                            running = False
-                            break
+                        elif model_choice == 4:
+                            count = analyze_crunch(frame)  
+                            print(f"크런치 횟수: {count}")
+                            client_socket.sendall(struct.pack('<I', int(count)))
+                            continue
+
+                        elif model_choice == 6:
+                            count = analyze_kick(frame)  
+                            print(f"킥 횟수: {count}")
+                            client_socket.sendall(struct.pack('<I', int(count)))
+                            continue
+
+                    except ConnectionResetError as cre:
+                        print(f"연결이 강제로 종료되었습니다: {cre}")
+                        break
 
                     except socket.timeout:
-                        pass  # 타임아웃 예외 발생 시 패스
+                        pass  
 
             except socket.timeout:
-                continue  # 타임아웃 발생 시 다시 accept 대기
+                continue  
 
     except KeyboardInterrupt:
         print("\n서버 종료 중...")
 
     finally:
         if client_socket:
-            client_socket.close()  # 클라이언트 소켓 닫기
-        server_socket.close()  # 서버 소켓 닫기
-        cv2.destroyAllWindows()  # 모든 OpenCV 창 닫기
+            client_socket.close() 
+        server_socket.close()  
+        cv2.destroyAllWindows()  
         print("서버 소켓이 닫혔습니다.")
 
 if __name__ == "__main__":
