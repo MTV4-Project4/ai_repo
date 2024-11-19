@@ -15,7 +15,7 @@ from pose_crunch import analyze_pose as analyze_crunch  # 'pose_crunch.py'에서
 # from pose_side_step import analyze_pose as analyze_side_step  # 'pose_side_step.py'에서 사이드스텝 분석 함수 가져오기
 from pose_kick import analyze_kick  # 'pose_kick.py'에서 킥 감지 분석 함수 가져오기
 
-def recv_all(sock, count):
+def recv_all(sock, count):  
     """ 지정한 바이트 수만큼 데이터를 수신 """
     buffer = b''
     while len(buffer) < count:
@@ -101,7 +101,7 @@ def start_server():
                             previous_model = model_choice
 
                         # 이미지 데이터 수신 및 디코딩
-                        frame = receive_image_data(client_socket)
+                        frame = receive_image_data(client_socket) 
                         if frame is None:
                             print("이미지 데이터 수신 실패")
                             continue  # 이미지가 없으면 다음 루프로 이동
@@ -159,6 +159,7 @@ def start_server():
         server_socket.close()  
         cv2.destroyAllWindows()  
         print("서버 소켓이 닫혔습니다.")
-
+    
 if __name__ == "__main__":
     start_server()
+

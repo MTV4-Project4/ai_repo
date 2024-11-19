@@ -3,9 +3,14 @@ import numpy as np
 import time
 from ultralytics import YOLO
 from mediapipe.python.solutions import pose as mp_pose
+import torch
 
 # YOLOv8 모델 불러오기
-model = YOLO("C:/MTV4/YOLO/yolov8n.pt")
+#model = YOLO("C:/MTV4/YOLO/yolov8m.pt")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(device)
+model = YOLO("C:/MTV4/YOLO/yolov8l.pt")  # GPU 사용
+model.to(device)
 
 # MediaPipe Pose 초기화
 pose = mp_pose.Pose(
@@ -36,10 +41,10 @@ kick_counter = KickCounter()
 def reset_counter():
     kick_counter.reset()
 
-def detect_kick(ball_position, left_foot_position, right_foot_position, threshold=65):  # 임계값 조정
+def detect_kick(ball_position, left_foot_position, right_foot_position, threshold=100):  # 임계값 조정(65->85으로 수정)
     if ball_position is None:
         return False
-    
+        
     if left_foot_position is None and right_foot_position is None:
         return False
 
@@ -95,7 +100,6 @@ def analyze_kick(frame):
 
     if pose_results.pose_landmarks:
         landmarks = pose_results.pose_landmarks.landmark
-        
         # 발 위치 계산 (발끝만 사용)
         left_foot = landmarks[mp_pose.PoseLandmark.LEFT_FOOT_INDEX]
         right_foot = landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX]

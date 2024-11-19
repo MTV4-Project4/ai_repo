@@ -40,16 +40,17 @@ def analyze_jump(frame):
     global left_lifted, right_lifted, count, last_left_lift_time, last_right_lift_time
     global initialized, initial_left_angle, initial_right_angle  # 초기화 관련 변수
 
-    img = cv2.flip(frame, 1)
+    debug_frame = frame.copy()  # 디버깅용 이미지 생성
     
     # Mediapipe로 이미지 처리
-    results = pose.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     
     current_time = time.time()  # 현재 시간
     
     if results.pose_landmarks:
+        # Mediapipe 랜드마크 및 연결 그리기
         mp_drawing.draw_landmarks(
-            img,
+            debug_frame,
             results.pose_landmarks,
             mp_pose.POSE_CONNECTIONS,
         )
@@ -111,5 +112,17 @@ def analyze_jump(frame):
             print(f"오른발 들기 카운트: {count}")
         elif right_angle < angle_threshold and right_ankle_height >= height_threshold:
             right_lifted = False  # 오른발이 내려가면 상태 초기화
+
+        # 디버깅 정보 화면에 표시
+        cv2.putText(debug_frame, f"Jump Count: {count}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(debug_frame, f"Left Angle: {left_angle:.2f}", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(debug_frame, f"Right Angle: {right_angle:.2f}", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    else:
+        cv2.putText(debug_frame, "No Landmarks Detected", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+    # 디버깅 화면 표시
+    cv2.imshow("Debug View", debug_frame)
+    cv2.waitKey(1)
 
     return count

@@ -9,7 +9,7 @@ pose = mp_pose.Pose()
 squat_state = False  # down 상태 여부
 count = 0  # 스쿼트 카운트
 
-# 3 점을 가지고 각도를 구하는 함수
+# 3점을 가지고 각도를 구하는 함수
 def calculate_angle(a, b, c):  # b가 가운데
     a = np.array(a[:2])  # x, y 좌표만 사용
     b = np.array(b[:2])
@@ -27,13 +27,17 @@ def calculate_angle(a, b, c):  # b가 가운데
 def analyze_pose(frame):
     global squat_state, count  # 전역 변수 사용
     
-    img = cv2.flip(frame, 1)
+    if frame is None:
+        print("입력 이미지가 None입니다.")
+        return count
     
-    results = pose.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    debug_frame = frame.copy()  # 좌우 반전 없이 디버그 화면 생성
+    
+    results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     
     if results.pose_landmarks:
         mp_drawing.draw_landmarks(
-            img,
+            debug_frame,
             results.pose_landmarks,
             mp_pose.POSE_CONNECTIONS,
         )
@@ -68,13 +72,19 @@ def analyze_pose(frame):
         
         # down 임계값을 90도로 변경하고 up 임계값을 120도로 변경
         if left_angle <= 90 and right_angle <= 90:
-            cv2.putText(img, "down", (0, 100), cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255), 3)
+            cv2.putText(debug_frame, "Down", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             squat_state = True  # down 상태
         if left_angle >= 120 and right_angle >= 120:
-            cv2.putText(img, "up", (0, 100), cv2.FONT_HERSHEY_COMPLEX, 2, (0, 0, 255), 3)
+            cv2.putText(debug_frame, "Up", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             if squat_state:  # 이전 상태가 down이었다면
                 count += 1  # 스쿼트 카운트 증가
                 squat_state = False  # up 상태로 변경
 
-    # img 대신 count를 리턴
+    # 카운트 표시
+    cv2.putText(debug_frame, f"Squat Count: {count}", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+    # 디버그 화면 표시
+    cv2.imshow("Debug View", debug_frame)
+    cv2.waitKey(1)
+
     return count

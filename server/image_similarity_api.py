@@ -54,7 +54,7 @@ def calculate_angles(landmarks):
 
 # 각도 유사도 비교 함수
 def calculate_similarity(angles1, angles2):
-    if len(angles1) != len(angles2):
+    if len(angles1) != len(angles2):    
         return 0
     distances = [abs(a1 - a2) for a1, a2 in zip(angles1, angles2)]
     similarity_score = 100 - (np.mean(distances))
@@ -82,11 +82,16 @@ def perform_similarity_analysis(urls: ImageURLs):
 
     print(f"유사도 분석 완료 - 유사도 점수: {similarity_score}, 결과: {result}")
 
-    # 이미지 시각화 (디버깅 및 확인용)
-    cv2.imshow("Processed Image 1", processed_image1)
-    cv2.imshow("Processed Image 2", processed_image2)
-    cv2.waitKey(0)  # 아무 키나 누르면 창이 닫힘
-    cv2.destroyAllWindows()
+    # 이미지 시각화 (비동기 처리)
+    from threading import Thread
+
+    def show_images():
+        cv2.imshow("Processed Image 1", processed_image1)
+        cv2.imshow("Processed Image 2", processed_image2)
+        cv2.waitKey(5000)  # 5초 동안 표시
+        cv2.destroyAllWindows()
+
+    Thread(target=show_images).start()
 
     return {
         "similarity_score": similarity_score,
@@ -100,3 +105,4 @@ async def compare_images(urls: ImageURLs):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=7900)
+    #metaai3.iptime.org:7900/compare_images

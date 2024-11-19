@@ -150,7 +150,7 @@ def analyze_foot(frame):
         cv2.imshow("Debug View", debug_frame)   # 창 이름과 이미지를 전달해야 함.
         cv2.waitKey(1)
 
-        return count
+        return count                                          
 
     except Exception as e:
         print(f"분석 중 오류 발생: {e}")
