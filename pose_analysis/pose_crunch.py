@@ -8,7 +8,7 @@ pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 # 전역 변수로 상태 및 카운트 관리
 crunch_state = False  
 count = 0  
-y_threshold = 0.02  
+y_threshold = 0.01 
 
 def analyze_pose(frame):
     global crunch_state, count  
